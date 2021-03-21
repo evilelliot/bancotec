@@ -4,7 +4,6 @@ import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;  
 import java.util.Scanner;
-
 class Accounts {
     private int ID;
     private int CLABE;
@@ -12,10 +11,15 @@ class Accounts {
     private String ownerName;
     private int ownerAge;
     private String ownerNIP;
+    private double balance;
     // instance of logger
     private Logger log = new Logger();
-    Accounts(){
-
+    // consults only query
+    Accounts(int ID, String ownerName, String ownerNIP){
+        this.ID = ID;
+        this.ownerName = ownerName;
+        this.ownerNIP = ownerNIP;
+        this.balance = 10.0;
     }
     Accounts(String ownerName, int ownerAge, String ownerNIP){
         // set the owner name
@@ -33,7 +37,7 @@ class Accounts {
             this.ownerNIP = this.encryptNIP(ownerNIP.toLowerCase());
             this.ownerInitials = this.getInitials();
             
-            this.storeAccount();
+            this.storeAccount(false);
 
             data = this.ID + "@" + this.ownerInitials;
             log.createEntry("newaccount", data);
@@ -43,19 +47,9 @@ class Accounts {
     }
     // security functions
     private String encryptNIP(String nip){
-        try{
-            MessageDigest mdConvert = MessageDigest.getInstance("MD5");
-            byte[] messageDigest = mdConvert.digest(nip.getBytes());
-            BigInteger number = new BigInteger(1, messageDigest);
+        Encrypt encrypt = new Encrypt();
 
-            String hashedText = number.toString(16);
-            while(hashedText.length() < 32){
-                hashedText = "0" + hashedText;
-            }
-            return hashedText;
-        }catch(NoSuchAlgorithmException e){
-            throw new RuntimeException(e);
-        }
+        return encrypt.encrypt(nip, "sha256");
 
     }
     private boolean validateNIP(String NIP){
@@ -68,13 +62,16 @@ class Accounts {
         }
     }
     // storage functions
-    private void storeAccount(){
+    private void storeAccount(boolean rw){
         // storage order
-        // ID, owner clabe,  ownerage , ownername, owner encrypted nip
-        String filename = "./users/" + this.ownerInitials + "_" + this.ownerAge + ".txt";
+        // ID, owner clabe,  ownerage , ownername, owner encrypted nip, balance
+        String filename = "./users/" + this.getInitials() + "_" + this.ID + ".txt";
         try {
-            FileWriter storage = new FileWriter(filename);
-            storage.write(this.ID + "-" + this.CLABE + "-" + this.ownerAge + "-" + this.ownerName + "-" + this.ownerNIP);
+            FileWriter storage = new FileWriter(filename, false);
+            if(rw == true){
+                storage.write(this.ID + "-" + this.CLABE + "-" + this.ownerAge + "-" + this.ownerName + "-" + this.encryptNIP(this.ownerNIP) + "-" + this.balance);    
+            }
+            storage.write(this.ID + "-" + this.CLABE + "-" + this.ownerAge + "-" + this.ownerName + "-" + this.ownerNIP + "-" + this.balance);
             storage.close();
         } catch (IOException e) {
             System.out.println("Ocurrio un error: leer más.");
@@ -83,13 +80,13 @@ class Accounts {
 
     }
     // getters
-    private String getInitials(){
+    public String getInitials(){
         String[] exploded = this.ownerName.split(" ");
         String initials = "";
         for(int i = 0; i <= exploded.length - 1; i++){            
             initials = initials +  exploded[i].charAt(0);
         }
-        return initials;
+        return initials.toLowerCase();
     }
     private int getRandomNumber(){
         Random rand = new Random();
@@ -103,8 +100,9 @@ class Accounts {
          * 2 = owner age
          * 3 = owner name
          * 4 = encrypted nip
+         * 5 = balance
          */
-        String file = "./users/" + this.getInitials() + "_"+ ownerAge  +".txt";
+        String file = "./users/" + this.getInitials() + "_"+ this.ID  +".txt";
         try{
             File f = new File(file);
             Scanner reader = new Scanner(f);
@@ -112,12 +110,12 @@ class Accounts {
             String information = reader.next();
             String[] inArray = information.split("-");
 
-            if(index > 4){
+            if(index > 5){
                 //System.out.println("No existe dicho indice de información.");
                 return null;
             }else{
                 //System.out.println(inArray[index]);
-                return inArray[index];
+                return inArray[index].toString();
             }
             
         }catch(FileNotFoundException e){
@@ -125,22 +123,63 @@ class Accounts {
             return null;
         }   
     }
-    public void showInformation(String nip, String userInitials){
+    public void showInformation(String nip){
+    
+
         String data;
-        if(this.validateNIP(this.encryptNIP(nip)) && userInitials == this.getInitials()){
-            System.out.println("ID: ");
-            System.out.println(this.getInformationFromFile(0));
-            System.out.println("Cuentahabiente: ");
-            System.out.println(this.getInformationFromFile(3));
+        System.out.println(this.getInformationFromFile(4));
+        System.out.println(this.encryptNIP(nip));
+        
+        nip = this.encryptNIP(nip);
+        System.out.print("\033[H\033[2J");  
+        System.out.flush(); 
+        System.out.println(nip.equals(this.getInformationFromFile(4)));
+        if(nip.equals(this.getInformationFromFile(4))){
+            System.out.println("*****************************");
+            System.out.println("*****************************");
+            System.out.println("ID: " + this.getInformationFromFile(0));
+            System.out.println("Cuentahabiente: " + this.getInformationFromFile(3));
+            System.out.println("balance: " + this.getInformationFromFile(5));
+            System.out.println("*****************************");
+            System.out.println("*****************************");
 
             data = this.getInformationFromFile(0) + "@" + this.getInitials();
             log.createEntry("consult", data);
         }else{
             System.out.println("Permiso denegado.");
+            
             data = "forbidden action for: " + this.ID;
             log.createEntry("consult", data);
         }
 
     }
-}
+    // setters
+    public void updatebalance(double cantidad, boolean tipo, String NIP){
+        System.out.println(this.getInformationFromFile(4));
+        if(this.encryptNIP(NIP).equals(this.getInformationFromFile(4))){
+            if(tipo == true){
+                String aux = getInformationFromFile(5);
+                this.balance = Double.parseDouble(aux) + cantidad;
 
+                //System.out.println(this.balance);
+                this.storeAccount(true);
+                System.out.println("Se han depositado: " + cantidad +  " a la cuenta " + this.ID);
+            }else{
+                if(cantidad > this.balance){  
+                    System.out.println("No tienes balance suficiente");
+                }else{
+                    String aux = getInformationFromFile(5);
+                    this.balance = Double.parseDouble(aux) - cantidad;
+
+                    //System.out.println(this.balance);
+                    this.storeAccount(true);
+                    System.out.println("Se han retirado: " + cantidad +  " de la cuenta " + this.ID);
+                    
+                }
+            }
+        }else{
+            System.out.println("No eres el propietario de esta cuenta");
+        }
+        
+    }
+}
